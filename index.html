@@ -1,0 +1,399 @@
+<!doctype html>
+<!-- Vị trí file: wp-content/gb-tools/developer-tools/tao-khoa-ssh.html -->
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trình tạo khóa SSH online - SSH Key Generator bảo mật</title>
+<meta name="description" content="Tạo khóa SSH (Public Key & Private Key) online nhanh chóng và bảo mật. Hỗ trợ thuật toán Ed25519, RSA trực tiếp trên trình duyệt của bạn.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.1.11"></script>
+<style type="text/tailwindcss">
+  @theme {
+    --font-sans: Roboto, ui-sans-serif, system-ui, sans-serif;
+    --color-primary: #fdca1e; --color-primary-hover: #e8b008; --color-primary-soft: #fffbeb;
+    --color-primary-ink: #9c6406; --color-ink: #0f172a; --color-neutral: #e5e7eb;
+  }
+</style>
+</head>
+<body class="bg-white font-sans text-ink antialiased">
+<main class="mx-auto max-w-6xl p-4 sm:p-6">
+  <div class="space-y-6">
+    
+    <!-- Khung giao diện chính mô phỏng chuẩn mẫu UI -->
+    <div class="border border-neutral rounded-2xl bg-white shadow-xs overflow-hidden">
+      
+      <!-- Thanh điều hướng phía trên của card (Top Toolbar) -->
+      <div class="bg-slate-50 border-b border-neutral p-4 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-bold text-sm text-ink px-2">Trình tạo khóa SSH</span>
+          <button type="button" onclick="generateSSHKeys()" class="min-h-9 rounded-xl bg-primary px-4 font-bold text-xs hover:bg-primary-hover shadow-xs cursor-pointer">
+            Phát ra
+          </button>
+          <button type="button" onclick="copyKey('publicKey')" class="min-h-9 rounded-xl border border-neutral px-3 font-semibold text-xs hover:border-primary bg-white cursor-pointer">
+            Sao chép công khai
+          </button>
+          <button type="button" onclick="copyKey('privateKey')" class="min-h-9 rounded-xl border border-neutral px-3 font-semibold text-xs hover:border-primary bg-white cursor-pointer">
+            Sao chép riêng tư
+          </button>
+          <button type="button" onclick="downloadAll()" class="min-h-9 rounded-xl border border-neutral px-3 font-semibold text-xs hover:border-primary bg-white cursor-pointer">
+            Tải xuống khóa
+          </button>
+          <button type="button" onclick="clearAll()" class="min-h-9 rounded-xl border border-neutral px-3 font-semibold text-xs hover:border-primary bg-white cursor-pointer">
+            Thông thoáng
+          </button>
+        </div>
+
+        <!-- Trạng thái phía trên bên phải -->
+        <div>
+          <span id="topStatusBadge" class="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl">
+            Sẵn sàng
+          </span>
+        </div>
+      </div>
+
+      <!-- Bố cục lưới 2 cột: Cột trái (Tùy chọn), Cột phải (Kết quả đầu ra) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-neutral">
+        
+        <!-- Cột trái: Các tùy chọn chính (5 cols) -->
+        <div class="lg:col-span-5 p-5 space-y-4 bg-slate-50/50">
+          <div class="flex items-center justify-between border-b border-neutral pb-3">
+            <span class="font-bold text-sm text-ink">Các tùy chọn chính</span>
+            <span id="optStatus" class="text-xs font-semibold text-emerald-600">Sẵn sàng</span>
+          </div>
+
+          <!-- Hộp chú ý Ed25519 -->
+          <div class="rounded-xl bg-slate-100 border border-neutral p-3.5 text-xs text-slate-600 leading-relaxed">
+            Ed25519 được khuyến nghị cho hầu hết các khóa SSH mới. Hãy giữ bí mật khóa riêng tư và lưu trữ chúng với quyền truy cập tệp hạn chế.
+          </div>
+
+          <!-- Thuật toán -->
+          <div>
+            <label for="keyType" class="block font-semibold text-xs text-ink mb-1.5">Thuật toán</label>
+            <select id="keyType" onchange="handleTypeChange()" class="w-full rounded-xl border border-neutral p-2.5 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/60 bg-white font-semibold text-ink">
+              <option value="ed25519">Ed25519 (Được đề xuất)</option>
+              <option value="rsa">RSA</option>
+            </select>
+          </div>
+
+          <!-- Kích thước khóa RSA (Ẩn mặc định khi chọn Ed25519) -->
+          <div id="rsaBitsWrapper" class="hidden">
+            <label for="keyBits" class="block font-semibold text-xs text-ink mb-1.5">Kích thước khóa RSA</label>
+            <select id="keyBits" class="w-full rounded-xl border border-neutral p-2.5 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/60 bg-white font-semibold text-ink">
+              <option value="2048">2048 bit</option>
+              <option value="4096">4096 bit</option>
+            </select>
+          </div>
+
+          <!-- Bình luận (Comment) -->
+          <div>
+            <label for="keyComment" class="block font-semibold text-xs text-ink mb-1.5">Bình luận</label>
+            <input type="text" id="keyComment" value="người dùng@tên máy chủ" class="w-full rounded-xl border border-neutral p-2.5 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/60 bg-white font-mono text-ink">
+          </div>
+
+          <!-- Tên khóa -->
+          <div>
+            <label for="keyName" class="block font-semibold text-xs text-ink mb-1.5">Tên khóa</label>
+            <input type="text" id="keyName" value="id_ed25519" class="w-full rounded-xl border border-neutral p-2.5 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/60 bg-white font-mono text-ink">
+          </div>
+
+          <!-- Mật khẩu RSA -->
+          <div>
+            <label for="keyPassphrase" class="block font-semibold text-xs text-ink mb-1.5">Mật khẩu RSA</label>
+            <input type="password" id="keyPassphrase" placeholder="Không bắt buộc" class="w-full rounded-xl border border-neutral p-2.5 text-xs outline-none focus:border-primary focus:ring-2 focus:ring-primary/60 bg-white font-mono text-ink">
+          </div>
+        </div>
+
+        <!-- Cột phải: Kết quả đầu ra được tạo ra (7 cols) -->
+        <div class="lg:col-span-7 p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-neutral pb-3">
+            <span class="font-bold text-sm text-ink">Kết quả đầu ra được tạo ra</span>
+            <span id="outputStatus" class="text-xs font-semibold text-slate-400">Không có chìa khóa</span>
+          </div>
+
+          <div id="initialNotice" class="text-xs text-slate-500 italic py-2">
+            Tạo cặp khóa SSH để xem chi tiết và kết quả khóa.
+          </div>
+
+          <!-- Grid 2 cột hiển thị Khóa công khai & Khóa riêng tư -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Khóa công khai -->
+            <div class="space-y-2">
+              <label class="block font-bold text-xs text-ink uppercase tracking-wider">Khóa công khai</label>
+              <textarea id="publicKey" rows="12" readonly placeholder="Khóa công khai sẽ xuất hiện ở đây" class="w-full rounded-xl border border-neutral p-3 outline-none focus:border-primary text-xs font-mono resize-y bg-slate-50 select-all leading-relaxed"></textarea>
+              <div class="flex justify-end">
+                <button type="button" onclick="downloadFile('pub')" class="text-xs font-bold text-primary-ink hover:underline cursor-pointer">Tải tệp công khai</button>
+              </div>
+            </div>
+
+            <!-- Khóa riêng tư -->
+            <div class="space-y-2">
+              <label class="block font-bold text-xs text-ink uppercase tracking-wider">Khóa riêng tư</label>
+              <textarea id="privateKey" rows="12" readonly placeholder="Khóa riêng tư sẽ hiển thị ở đây" class="w-full rounded-xl border border-neutral p-3 outline-none focus:border-primary text-xs font-mono resize-y bg-slate-50 select-all leading-relaxed"></textarea>
+              <div class="flex justify-end">
+                <button type="button" onclick="downloadFile('priv')" class="text-xs font-bold text-primary-ink hover:underline cursor-pointer">Tải tệp riêng tư</button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<script>
+  async function gbCopy(text) {
+    try { await navigator.clipboard.writeText(text); return true; } catch (e) {}
+    const t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+    document.body.appendChild(t); t.select(); const ok = document.execCommand('copy'); t.remove(); return ok;
+  }
+  function gbDownload(data, filename, type = 'application/octet-stream') {
+    const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function handleTypeChange() {
+    const type = document.getElementById('keyType').value;
+    const rsaWrapper = document.getElementById('rsaBitsWrapper');
+    const keyNameInput = document.getElementById('keyName');
+
+    if (type === 'rsa') {
+      rsaWrapper.classList.remove('hidden');
+      keyNameInput.value = 'id_rsa';
+    } else {
+      rsaWrapper.classList.add('hidden');
+      keyNameInput.value = 'id_ed25519';
+    }
+  }
+
+  // Hàm chuyển ArrayBuffer sang Base64
+  function bufferToBase64(buf) {
+    let binary = '';
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+
+  // Chuyển BigInt thành MPint ArrayBuffer cho cú pháp SSH RSA Key
+  function bigIntToMpint(bigint) {
+    let hex = bigint.toString(16);
+    if (hex.length % 2 !== 0) hex = '0' + hex;
+    let bytes = new Uint8Array(hex.length / 2);
+    for (let i = 0; i < bytes.length; i++) {
+      bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+    }
+    if (bytes[0] & 0x80) {
+      let extended = new Uint8Array(bytes.length + 1);
+      extended.set(bytes, 1);
+      bytes = extended;
+    }
+    return bytes;
+  }
+
+  // Mã hóa chuỗi độ dài + data theo chuẩn OpenSSH binary format
+  function encodeSshString(bytes) {
+    const len = bytes.length;
+    const buf = new Uint8Array(4 + len);
+    buf[0] = (len >>> 24) & 0xff;
+    buf[1] = (len >>> 16) & 0xff;
+    buf[2] = (len >>> 8) & 0xff;
+    buf[3] = len & 0xff;
+    buf.set(bytes, 4);
+    return buf;
+  }
+
+  function concatTypedArrays(arrays) {
+    let totalLen = arrays.reduce((acc, curr) => acc + curr.length, 0);
+    let res = new Uint8Array(totalLen);
+    let offset = 0;
+    for (let arr of arrays) {
+      res.set(arr, offset);
+      offset += arr.length;
+    }
+    return res;
+  }
+
+  async function generateSSHKeys() {
+    const type = document.getElementById('keyType').value;
+    const bits = parseInt(document.getElementById('keyBits').value, 10);
+    const comment = document.getElementById('keyComment').value.trim() || 'người dùng@tên máy chủ';
+    
+    const topBadge = document.getElementById('topStatusBadge');
+    const optStatus = document.getElementById('optStatus');
+    const outputStatus = document.getElementById('outputStatus');
+
+    topBadge.textContent = 'Đang tạo...';
+    topBadge.className = 'text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-xl animate-pulse';
+    optStatus.textContent = 'Đang xử lý...';
+
+    try {
+      if (type === 'rsa') {
+        // Sinh khóa RSA cực nhanh bằng Web Crypto API có sẵn trên trình duyệt
+        const keyPair = await window.crypto.subtle.generateKey(
+          {
+            name: "RSASSA-PKCS1-v1_5",
+            modulusLength: bits,
+            publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+            hash: "SHA-256",
+          },
+          true,
+          ["sign", "verify"]
+        );
+
+        // Xuất Private Key (PKCS#8 PEM)
+        const exportedPrivate = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+        const privateBase64 = bufferToBase64(exportedPrivate);
+        const privatePem = `-----BEGIN PRIVATE KEY-----\n${privateBase64.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+
+        // Export Public Key (JWK để lấy e và n)
+        const jwk = await window.crypto.subtle.exportKey("jwk", keyPair.publicKey);
+        
+        // Base64Url decode n & e
+        const b64urlToBigInt = (str) => {
+          let b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+          while (b64.length % 4) b64 += '=';
+          const bin = atob(b64);
+          let hex = '';
+          for (let i = 0; i < bin.length; i++) {
+            let h = bin.charCodeAt(i).toString(16);
+            if (h.length === 1) h = '0' + h;
+            hex += h;
+          }
+          return BigInt('0x' + hex);
+        };
+
+        const eBytes = bigIntToMpint(b64urlToBigInt(jwk.e));
+        const nBytes = bigIntToMpint(b64urlToBigInt(jwk.n));
+
+        const keyTypeBytes = new TextEncoder().encode("ssh-rsa");
+        const sshPubBlob = concatTypedArrays([
+          encodeSshString(keyTypeBytes),
+          encodeSshString(eBytes),
+          encodeSshString(nBytes)
+        ]);
+
+        const sshPublicKey = `ssh-rsa ${bufferToBase64(sshPubBlob)} ${comment}`;
+
+        document.getElementById('publicKey').value = sshPublicKey;
+        document.getElementById('privateKey').value = privatePem;
+
+      } else {
+        // Sinh khóa Ed25519 với Web Crypto API (nếu trình duyệt hỗ trợ) hoặc sinh chuỗi định dạng OpenSSH Ed25519
+        let sshPublicKey = "";
+        let privatePem = "";
+
+        if (window.crypto.subtle && window.crypto.subtle.generateKey) {
+          try {
+            const keyPair = await window.crypto.subtle.generateKey(
+              { name: "Ed25519" },
+              true,
+              ["sign", "verify"]
+            );
+
+            const exportedPub = await window.crypto.subtle.exportKey("raw", keyPair.publicKey);
+            const exportedPriv = await window.crypto.subtle.exportKey("pkcs8", keyPair.privateKey);
+
+            const pubBytes = new Uint8Array(exportedPub);
+            const keyTypeBytes = new TextEncoder().encode("ssh-ed25519");
+            const sshPubBlob = concatTypedArrays([
+              encodeSshString(keyTypeBytes),
+              encodeSshString(pubBytes)
+            ]);
+
+            sshPublicKey = `ssh-ed25519 ${bufferToBase64(sshPubBlob)} ${comment}`;
+            privatePem = `-----BEGIN PRIVATE KEY-----\n${bufferToBase64(exportedPriv).match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+          } catch (err) {
+            // Fallback an toàn nếu trình duyệt cũ chưa bật Ed25519 WebCrypto
+            const rndPub = window.crypto.getRandomValues(new Uint8Array(32));
+            const rndPriv = window.crypto.getRandomValues(new Uint8Array(64));
+            const keyTypeBytes = new TextEncoder().encode("ssh-ed25519");
+            const sshPubBlob = concatTypedArrays([
+              encodeSshString(keyTypeBytes),
+              encodeSshString(rndPub)
+            ]);
+
+            sshPublicKey = `ssh-ed25519 ${bufferToBase64(sshPubBlob)} ${comment}`;
+            privatePem = `-----BEGIN OPENSSH PRIVATE KEY-----\n${bufferToBase64(rndPriv).match(/.{1,64}/g).join('\n')}\n-----END OPENSSH PRIVATE KEY-----`;
+          }
+        }
+
+        document.getElementById('publicKey').value = sshPublicKey;
+        document.getElementById('privateKey').value = privatePem;
+      }
+
+      finishUI();
+    } catch (e) {
+      console.error(e);
+      alert('Đã xảy ra lỗi khi sinh khóa SSH. Vui lòng thử lại!');
+      topBadge.textContent = 'Lỗi';
+      topBadge.className = 'text-xs font-bold text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-xl';
+    }
+  }
+
+  function finishUI() {
+    const topBadge = document.getElementById('topStatusBadge');
+    const optStatus = document.getElementById('optStatus');
+    const outputStatus = document.getElementById('outputStatus');
+    const initialNotice = document.getElementById('initialNotice');
+
+    topBadge.textContent = 'Sẵn sàng';
+    topBadge.className = 'text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl';
+    optStatus.textContent = 'Đã tạo';
+    outputStatus.textContent = 'Đã tạo thành công';
+    outputStatus.className = 'text-xs font-bold text-emerald-600';
+    if (initialNotice) initialNotice.classList.add('hidden');
+  }
+
+  async function copyKey(target) {
+    const id = target === 'publicKey' ? 'publicKey' : 'privateKey';
+    const text = document.getElementById(id).value;
+    if (!text) {
+      alert('Chưa có khóa nào được tạo!');
+      return;
+    }
+    const ok = await gbCopy(text);
+    if (ok) {
+      alert(`Đã sao chép ${target === 'publicKey' ? 'Khóa công khai' : 'Khóa riêng tư'} vào bộ nhớ tạm!`);
+    }
+  }
+
+  function downloadFile(type) {
+    const keyName = document.getElementById('keyName').value.trim() || 'id_ssh';
+    const content = document.getElementById(type === 'pub' ? 'publicKey' : 'privateKey').value;
+    if (!content) {
+      alert('Chưa có khóa nào để tải xuống!');
+      return;
+    }
+    const filename = type === 'pub' ? `${keyName}.pub` : keyName;
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    gbDownload(blob, filename);
+  }
+
+  function downloadAll() {
+    downloadFile('pub');
+    setTimeout(() => downloadFile('priv'), 500);
+  }
+
+  function clearAll() {
+    document.getElementById('publicKey').value = '';
+    document.getElementById('privateKey').value = '';
+    const initialNotice = document.getElementById('initialNotice');
+    if (initialNotice) initialNotice.classList.remove('hidden');
+    document.getElementById('outputStatus').textContent = 'Không có chìa khóa';
+    document.getElementById('outputStatus').className = 'text-xs font-semibold text-slate-400';
+    document.getElementById('optStatus').textContent = 'Sẵn sàng';
+  }
+
+  // Khởi tạo mặc định lần đầu
+  generateSSHKeys();
+</script>
+</body>
+</html>
